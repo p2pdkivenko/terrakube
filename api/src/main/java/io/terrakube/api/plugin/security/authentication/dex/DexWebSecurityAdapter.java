@@ -11,10 +11,12 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import io.terrakube.api.plugin.mfa.filter.MfaVerificationFilter;
 import io.terrakube.api.repository.PatRepository;
 import io.terrakube.api.repository.TeamTokenRepository;
 
@@ -45,7 +47,8 @@ public class DexWebSecurityAdapter {
                         @Value("${io.terrakube.token.issuer-uri}") String issuerUri,
                         @Value("${io.terrakube.token.pat}") String patJwtSecret,
                         @Value("${io.terrakube.token.internal}") String internalJwtSecret, PatRepository patRepository,
-                        TeamTokenRepository teamTokenRepository) throws Exception {
+                        TeamTokenRepository teamTokenRepository,
+                        MfaVerificationFilter mfaVerificationFilter) throws Exception {
                 http.cors(Customizer.withDefaults())
                                 .csrf(crsf -> crsf.ignoringRequestMatchers("/remote/tfe/v2/configuration-versions/*",
                                                 "/tfstate/v1/archive/*/terraform.tfstate",
@@ -88,6 +91,8 @@ public class DexWebSecurityAdapter {
                                                         .build();
                                         oauth2.authenticationManagerResolver(authenticationManagerResolver);
                                 });
+
+                http.addFilterAfter(mfaVerificationFilter, BearerTokenAuthenticationFilter.class);
 
                 return http.build();
         }

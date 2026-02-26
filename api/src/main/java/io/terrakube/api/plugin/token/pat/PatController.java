@@ -10,28 +10,50 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import io.terrakube.api.rs.token.pat.Pat;
+import io.terrakube.api.repository.UserMfaSettingsRepository;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @RestController
 @RequestMapping("/pat/v1")
 public class PatController {
 
-    @Autowired
-    PatService patService;
+    private final PatService patService;
+    private final UserMfaSettingsRepository userMfaSettingsRepository;
+
+    public PatController(PatService patService, UserMfaSettingsRepository userMfaSettingsRepository) {
+        this.patService = patService;
+        this.userMfaSettingsRepository = userMfaSettingsRepository;
+    }
 
     @PostMapping
-    public ResponseEntity<PatResponse> createToken(@RequestBody PatTokenRequest patTokenRequest, Principal principal) {
-        PatResponse patResponse = new PatResponse();
+    public ResponseEntity<?> createToken(@RequestBody PatTokenRequest patTokenRequest, Principal principal) {
         JwtAuthenticationToken principalJwt = ((JwtAuthenticationToken) principal);
+        String userEmail = (String) principalJwt.getTokenAttributes().get("email");
+        
+        // Check if MFA is enabled for this user
+        Optional<io.terrakube.api.rs.mfa.UserMfaSettings> mfaSettings = userMfaSettingsRepository.findByUserEmail(userEmail);
+        if (mfaSettings.isPresent() && mfaSettings.get().isMfaEnabled()) {
+            log.warn("PAT creation blocked for user {} - MFA is enabled", userEmail);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "PAT creation disabled when MFA is enabled");
+            errorResponse.put("mfaEnabled", true);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        }
+        
+        // Existing PAT creation logic
+        PatResponse patResponse = new PatResponse();
         log.info("{}", principalJwt);
         patResponse.setToken(patService.createToken(
                 patTokenRequest.getDays(),
                 patTokenRequest.getDescription(),
                 principalJwt.getTokenAttributes().get("name"),
-                principalJwt.getTokenAttributes().get("email"),
+                userEmail,
                 principalJwt.getTokenAttributes().get("groups")
             )
         );
