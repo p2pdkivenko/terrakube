@@ -1,0 +1,21 @@
+.mfa-section {
+  padding: 24px;
+  max-width: 800px;
+}
+
+.mfa-section .ant-card {
+  margin-bottom: 16px;
+}
+
+.mfa-section .mfa-status-badge {
+  margin-bottom: 24px;
+}
+
+.mfa-section .method-icon {
+  font-size: 24px;
+  margin-right: 12px;
+}
+
+.mfa-section .backup-codes-alert {
+  margin-top: 24px;
+}

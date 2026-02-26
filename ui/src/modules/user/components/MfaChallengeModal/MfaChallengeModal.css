@@ -1,0 +1,62 @@
+.mfa-challenge-modal .ant-modal-content {
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.mfa-challenge-modal .ant-modal-header {
+  margin-bottom: 24px;
+}
+
+.mfa-challenge-modal .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.mfa-challenge-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 0;
+}
+
+.mfa-challenge-description {
+  text-align: center;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 16px;
+}
+
+.mfa-input-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.mfa-error-message {
+  color: #ff4d4f;
+  text-align: center;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.webauthn-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.webauthn-icon {
+  font-size: 48px;
+  color: #1890ff;
+}
+
+.backup-code-input {
+  text-align: center;
+  letter-spacing: 2px;
+  font-family: monospace;
+  font-size: 16px;
+  text-transform: uppercase;
+}

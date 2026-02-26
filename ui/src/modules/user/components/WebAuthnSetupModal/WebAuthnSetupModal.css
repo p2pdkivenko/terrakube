@@ -1,0 +1,84 @@
+.webauthn-setup-modal .ant-modal-body {
+  padding-top: 24px;
+}
+
+.webauthn-method-selection {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.webauthn-method-card {
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 160px;
+}
+
+.webauthn-method-card:hover {
+  border-color: #1890ff;
+  background-color: #f0f5ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.webauthn-method-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #1890ff;
+}
+
+.webauthn-method-title {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.webauthn-method-desc {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.webauthn-credentials-list {
+  margin-top: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.credential-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.credential-item:last-child {
+  border-bottom: none;
+}
+
+.credential-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.credential-name {
+  font-weight: 500;
+}
+
+.credential-meta {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.webauthn-setup-steps {
+  margin-bottom: 24px;
+}

@@ -3,32 +3,37 @@ import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Tokens } from "./components/PatSection/PatSection";
 import { ThemeSection } from "./components/ThemeSection/ThemeSection";
+import { MfaSection } from "./components/MfaSection/MfaSection";
 import "./UserSettingsPage.css";
 const { Content } = Layout;
 
 export const UserSettingsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const currentTab = location.pathname.includes("/settings/theme") ? "2" : "1";
+  const currentTab = location.pathname.includes("/settings/theme") ? "2" : location.pathname.includes("/settings/security") ? "3" : "1";
   const {
     token: { colorBgContainer },
   } = theme.useToken();
 
   useEffect(() => {
     // Update URL when component mounts to match the current tab
-    if (currentTab === "2" && !location.pathname.includes("/settings/theme")) {
+if (currentTab === "2" && !location.pathname.includes("/settings/theme")) {
       navigate("/settings/theme", { replace: true });
-    } else if (currentTab === "1" && !location.pathname.includes("/settings/tokens")) {
-      navigate("/settings/tokens", { replace: true });
-    }
+    } else if (currentTab === "3" && !location.pathname.includes("/settings/security")) {
+      navigate("/settings/security", { replace: true });
+} else if (currentTab === "1" && !location.pathname.includes("/settings/tokens")) {
+navigate("/settings/tokens", { replace: true });
+}
   }, []);
 
   const handleTabChange = (key: string) => {
-    if (key === "2") {
+if (key === "2") {
       navigate("/settings/theme");
-    } else {
-      navigate("/settings/tokens");
-    }
+    } else if (key === "3") {
+      navigate("/settings/security");
+} else {
+navigate("/settings/tokens");
+}
   };
 
   return (
@@ -40,7 +45,7 @@ export const UserSettingsPage = () => {
             title: "Settings",
           },
           {
-            title: currentTab === "2" ? "Theme" : "Tokens",
+            title: currentTab === "2" ? "Theme" : currentTab === "3" ? "Security" : "Tokens",
           },
         ]}
       />
@@ -58,7 +63,12 @@ export const UserSettingsPage = () => {
             {
               label: "Theme",
               key: "2",
-              children: <ThemeSection />,
+children: <ThemeSection />,
+            },
+            {
+              label: "Security",
+              key: "3",
+              children: <MfaSection />,
             },
           ]}
         />
