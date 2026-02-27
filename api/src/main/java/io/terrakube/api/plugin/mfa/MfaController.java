@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import io.terrakube.api.plugin.security.user.AuthenticatedUser;
 import com.yahoo.elide.core.security.User;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -123,6 +124,7 @@ public class MfaController {
 
         MfaStatusResponse response = new MfaStatusResponse();
         response.setMfaEnabled(mfaEnabled);
+        response.setMfaVerified(mfaEnabled && mfaSessionService.isMfaVerified(userEmail));
         response.setMethods(methods);
         response.setBackupCodesRemaining(backupCodesRemaining);
 
@@ -179,10 +181,18 @@ public class MfaController {
         String userEmail = getCurrentUserEmail();
         log.info("Generating WebAuthn registration options for user: {}", userEmail);
 
-        String authenticatorAttachment = request != null ? request.getAuthenticatorAttachment() : null;
-        String options = webAuthnService.generateRegistrationOptions(userEmail, authenticatorAttachment);
+        if (!mfaRateLimitService.checkRateLimit(userEmail)) {
+            return ResponseEntity.status(429).body("{\"error\": \"Too many requests\"}");
+        }
 
-        return ResponseEntity.ok(options);
+        String authenticatorAttachment = request != null ? request.getAuthenticatorAttachment() : null;
+        try {
+            String options = webAuthnService.generateRegistrationOptions(userEmail, authenticatorAttachment);
+            return ResponseEntity.ok(options);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid authenticator attachment type: {}", authenticatorAttachment);
+            return ResponseEntity.badRequest().body("{\"error\": \"Invalid authenticator attachment type: " + authenticatorAttachment + "\"}");
+        }
     }
 
     @PostMapping("/webauthn/register/verify")
@@ -191,7 +201,11 @@ public class MfaController {
         String userEmail = getCurrentUserEmail();
         log.info("Verifying WebAuthn registration for user: {}", userEmail);
 
-        boolean verified = webAuthnService.verifyRegistration(userEmail, request.getCredential());
+        if (!mfaRateLimitService.checkRateLimit(userEmail)) {
+            return ResponseEntity.status(429).body(Map.of("error", "Too many requests"));
+        }
+
+        boolean verified = webAuthnService.verifyRegistration(userEmail, request.getCredential(), request.getName());
 
         if (verified) {
             // Enable MFA for user
@@ -233,6 +247,28 @@ public class MfaController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/webauthn/credentials/{id}")
+    public ResponseEntity<Map<String, Object>> renameWebAuthnCredential(@PathVariable UUID id, @RequestBody Map<String, String> body) {
+        String userEmail = getCurrentUserEmail();
+        String newName = body.get("name");
+        if (newName == null || newName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Name is required"));
+        }
+
+        Optional<MfaCredential> credentialOpt = mfaCredentialRepository.findByIdAndUserEmail(id, userEmail);
+        if (credentialOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("success", false, "message", "Credential not found"));
+        }
+
+        MfaCredential credential = credentialOpt.get();
+        credential.setName(newName.trim());
+        mfaCredentialRepository.save(credential);
+
+        log.info("WebAuthn credential {} renamed to '{}' for user: {}", id, newName.trim(), userEmail);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Credential renamed successfully"));
     }
 
     @DeleteMapping("/webauthn/credentials/{id}")
@@ -385,19 +421,9 @@ public class MfaController {
     }
 
     @DeleteMapping("/totp")
-    public ResponseEntity<TotpDeleteResponse> deleteTotp(@RequestBody TotpDeleteRequest request) {
+    public ResponseEntity<TotpDeleteResponse> deleteTotp() {
         String userEmail = getCurrentUserEmail();
         log.info("Deleting TOTP for user: {}", userEmail);
-
-        // Verify code before deletion
-        boolean verified = totpService.verifyCodeForUser(userEmail, request.getCode());
-        if (!verified) {
-            log.warn("TOTP deletion failed - invalid code for user: {}", userEmail);
-            TotpDeleteResponse response = new TotpDeleteResponse();
-            response.setDeleted(false);
-            response.setMessage("Invalid TOTP code");
-            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
-        }
 
         // Delete TOTP credentials
         List<MfaCredential> totpCredentials = mfaCredentialRepository.findByUserEmailAndType(userEmail, TOTP_TYPE);
@@ -499,6 +525,7 @@ public class MfaController {
     @Setter
     public static class MfaStatusResponse {
         private boolean mfaEnabled;
+        private boolean mfaVerified;
         private List<MfaMethodInfo> methods;
         private int backupCodesRemaining;
     }

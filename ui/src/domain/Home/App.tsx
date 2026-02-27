@@ -10,6 +10,7 @@ import {
   useOutletContext,
 } from "react-router-dom";
 import { useAuth } from "../../config/authConfig";
+import { getUserFromStorage } from "../../config/authUser";
 import { getThemeConfig } from "../../config/themeConfig";
 import { ThemeProvider, useTheme } from "../../context/ThemeContext";
 import Login from "../Login/Login";
@@ -215,11 +216,44 @@ const AppLayout = () => {
 const App = () => {
   const auth = useAuth();
   const expiry = auth?.user?.expires_at;
+  const [mfaChecked, setMfaChecked] = useState(false);
 
   // Checking with the expiry time in the localstorage and when it has crossed the access has been revoked so It will clear the local storage and by default with no localstorage object it will route to login page.
   if (auth.isAuthenticated && auth?.user && expiry !== undefined && Math.floor(Date.now() / 1000) > expiry) {
     localStorage.clear();
   }
+
+  // Proactive MFA check — fire immediately after auth to avoid delayed redirect
+  useEffect(() => {
+    if (!auth.isAuthenticated || mfaChecked) return;
+    // Skip check if already on /mfa page
+    if (window.location.pathname === "/mfa") {
+      setMfaChecked(true);
+      return;
+    }
+    const token = auth.user?.access_token || getUserFromStorage()?.access_token;
+    if (!token) {
+      // Wait for token to be available
+      return;
+    }
+    const origin = new URL((window as any)._env_.REACT_APP_TERRAKUBE_API_URL).origin;
+    fetch(`${origin}/mfa/v1/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.mfaEnabled && !data?.mfaVerified) {
+          // MFA required but not verified — redirect immediately
+          window.location.href = `/mfa?returnTo=${encodeURIComponent(window.location.pathname)}`;
+        } else {
+          setMfaChecked(true);
+        }
+      })
+      .catch(() => {
+        // On error, let the app load — interceptor will catch 403s later
+        setMfaChecked(true);
+      });
+  }, [auth.isAuthenticated, mfaChecked]);
 
   if (auth.isLoading) {
     return null;
@@ -229,6 +263,9 @@ const App = () => {
     return <Login />;
   }
 
+  if (!mfaChecked) {
+    return null;
+  }
   const router = createBrowserRouter([
     // MFA page - standalone, outside AppLayout
     {

@@ -71,12 +71,12 @@ export default function BackupCodesModal({ visible, onCancel }: Props) {
         </Button>
       ]}
       width={500}
-      destroyOnClose
-      maskClosable={false}
+      destroyOnHidden
+      mask={{ closable: false }}
       closable={false}
     >
       <Alert
-        message="Save your backup codes"
+        title="Save your backup codes"
         description="If you lose access to your device, these codes are the only way to access your account. Save them in a secure place."
         type="warning"
         showIcon

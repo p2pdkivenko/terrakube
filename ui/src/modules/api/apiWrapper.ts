@@ -105,6 +105,14 @@ export async function apiPut<TRequest, TResponse>(
 ): Promise<ApiResponse<TResponse>> {
   return await put<TRequest, TResponse>(`${BASE_API_URL}${path}`, body, getOptions(options));
 }
+
+export async function apiPatch<TRequest, TResponse>(
+  path: string,
+  body: TRequest,
+  options?: RequestOptions
+): Promise<ApiResponse<TResponse>> {
+  return await patch<TRequest, TResponse>(`${BASE_API_URL}${path}`, body, getOptions(options));
+}
 export async function apiGet<T>(path: string, options?: RequestOptions): Promise<ApiResponse<T>> {
   return await get<T>(`${BASE_API_URL}${path}`, getOptions(options));
 }
@@ -180,6 +188,33 @@ async function put<TRequest, TResponse>(
     }
     const response = await axios({
       method: "PUT",
+      url: path,
+      headers: headers,
+      data: body,
+      params: options.query,
+    });
+    return {
+      isError: false,
+      data: options.dataWrapped ? response.data?.data : response.data,
+      responseCode: response.status,
+    };
+  });
+}
+async function patch<TRequest, TResponse>(
+  path: string,
+  body: TRequest,
+  options: RequestOptions
+): Promise<ApiResponse<TResponse>> {
+  return await requestWrapper(options.requireAuth, async (accessToken?: string) => {
+    const headers: Record<string, string> = {
+      "Content-type": options.contentType!,
+    };
+
+    if (options.requireAuth) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+    const response = await axios({
+      method: "PATCH",
       url: path,
       headers: headers,
       data: body,

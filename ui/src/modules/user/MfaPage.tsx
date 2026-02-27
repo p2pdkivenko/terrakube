@@ -103,7 +103,7 @@ const MfaPageContent: React.FC = () => {
     try {
       const optionsResponse = await mfaService.getWebAuthnAuthOptions();
       const options = optionsResponse.data;
-      const assertion = await startAuthentication(options);
+      const assertion = await startAuthentication({ optionsJSON: options });
       await mfaService.verifyWebAuthnAuth(assertion);
       handleSuccess();
     } catch (err: any) {

@@ -22,13 +22,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.redis.core.RedisTemplate;
+
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-
+import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 public class WebAuthnService {
@@ -43,18 +44,24 @@ public class WebAuthnService {
     private static final WebAuthnManager WEB_AUTHN_MANAGER = WebAuthnManager.createNonStrictWebAuthnManager();
 
     private final MfaCredentialRepository mfaCredentialRepository;
-    private final Map<String, Challenge> registrationChallenges = new ConcurrentHashMap<>();
-    private final Map<String, Challenge> authenticationChallenges = new ConcurrentHashMap<>();
+    private final RedisTemplate<String, Object> redisTemplate;
+    private static final String CHALLENGE_KEY_PREFIX_REG = "mfa:webauthn:challenge:reg:";
+    private static final String CHALLENGE_KEY_PREFIX_AUTH = "mfa:webauthn:challenge:auth:";
+    private static final long CHALLENGE_TTL_MINUTES = 5;
 
     @Value("${io.terrakube.hostname:http://localhost:8080}")
     private String hostname;
+
+    @Value("${io.terrakube.ui.url:}")
+    private String uiUrl;
 
 
     @Value("${io.terrakube.mfa.webauthn.rp-name:Terrakube}")
     private String rpName;
 
-    public WebAuthnService(MfaCredentialRepository mfaCredentialRepository) {
+    public WebAuthnService(MfaCredentialRepository mfaCredentialRepository, RedisTemplate<String, Object> redisTemplate) {
         this.mfaCredentialRepository = mfaCredentialRepository;
+        this.redisTemplate = redisTemplate;
     }
 
     public String generateRegistrationOptions(String userEmail) {
@@ -63,7 +70,7 @@ public class WebAuthnService {
 
     public String generateRegistrationOptions(String userEmail, String authenticatorAttachment) {
         Challenge challenge = createChallenge();
-        registrationChallenges.put(userEmail, challenge);
+        storeChallenge(CHALLENGE_KEY_PREFIX_REG + userEmail, challenge);
 
         PublicKeyCredentialRpEntity rp = new PublicKeyCredentialRpEntity(resolveRpId(), rpName);
         PublicKeyCredentialUserEntity user = new PublicKeyCredentialUserEntity(
@@ -92,8 +99,8 @@ public class WebAuthnService {
         return OBJECT_CONVERTER.getJsonConverter().writeValueAsString(options);
     }
 
-    public boolean verifyRegistration(String userEmail, String attestationResponse) {
-        Challenge challenge = registrationChallenges.remove(userEmail);
+    public boolean verifyRegistration(String userEmail, String attestationResponse, String name) {
+        Challenge challenge = retrieveAndDeleteChallenge(CHALLENGE_KEY_PREFIX_REG + userEmail);
         if (challenge == null) {
             log.warn("Missing WebAuthn registration challenge for user: {}", userEmail);
             return false;
@@ -101,7 +108,7 @@ public class WebAuthnService {
 
         try {
             JsonNode payload = OBJECT_MAPPER.readTree(attestationResponse);
-            String credentialName = extractCredentialName(payload);
+            String credentialName = (name != null && !name.isBlank()) ? name : extractCredentialName(payload);
             String credentialPayload = extractCredentialPayload(payload, attestationResponse);
 
             RegistrationData registrationData = WEB_AUTHN_MANAGER.parseRegistrationResponseJSON(credentialPayload);
@@ -162,7 +169,7 @@ public class WebAuthnService {
 
     public PublicKeyCredentialRequestOptions generateAuthenticationOptions(String userEmail) {
         Challenge challenge = createChallenge();
-        authenticationChallenges.put(userEmail, challenge);
+        storeChallenge(CHALLENGE_KEY_PREFIX_AUTH + userEmail, challenge);
 
         List<PublicKeyCredentialDescriptor> allowCredentials = getRegisteredCredentials(userEmail).stream()
                 .map(this::toPublicKeyDescriptor)
@@ -180,7 +187,7 @@ public class WebAuthnService {
     }
 
     public boolean verifyAuthentication(String userEmail, Object assertionResponse) {
-        Challenge challenge = authenticationChallenges.remove(userEmail);
+        Challenge challenge = retrieveAndDeleteChallenge(CHALLENGE_KEY_PREFIX_AUTH + userEmail);
         if (challenge == null) {
             log.warn("Missing WebAuthn authentication challenge for user: {}", userEmail);
             return false;
@@ -206,7 +213,7 @@ public class WebAuthnService {
                     createServerProperty(challenge),
                     credentialRecord,
                     allowCredentials,
-                    true,
+                    false,  // userVerificationRequired - UV not required; user already authenticated via OIDC
                     true
             );
 
@@ -241,6 +248,21 @@ public class WebAuthnService {
         return new DefaultChallenge(challengeBytes);
     }
 
+    private void storeChallenge(String key, Challenge challenge) {
+        String encoded = Base64.getEncoder().encodeToString(challenge.getValue());
+        redisTemplate.opsForValue().set(key, encoded, CHALLENGE_TTL_MINUTES, TimeUnit.MINUTES);
+    }
+
+    private Challenge retrieveAndDeleteChallenge(String key) {
+        Object value = redisTemplate.opsForValue().get(key);
+        redisTemplate.delete(key);
+        if (value == null) {
+            throw new IllegalStateException("Challenge not found or expired");
+        }
+        byte[] decoded = Base64.getDecoder().decode(value.toString());
+        return new DefaultChallenge(decoded);
+    }
+
     private ServerProperty createServerProperty(Challenge challenge) {
         return createServerProperty(challenge, null);
     }
@@ -254,7 +276,11 @@ public class WebAuthnService {
     }
 
     private String resolveOrigin(Origin requestOrigin) {
-        // Use TerrakubeHostname as primary, fallback to request origin
+        // Use UI URL as primary (browser-facing domain for WebAuthn)
+        if (uiUrl != null && !uiUrl.isBlank()) {
+            return uiUrl;
+        }
+        // Fallback to API hostname
         if (hostname != null && !hostname.isBlank()) {
             return hostname;
         }
@@ -376,9 +402,14 @@ public class WebAuthnService {
         return null;
     }
 
-    private void updateCredentialAfterAuthentication(MfaCredential credential, long signCount) throws Exception {
+    private void updateCredentialAfterAuthentication(MfaCredential credential, long newSignCount) throws Exception {
         Map<String, Object> data = readCredentialData(credential);
-        data.put("signCount", signCount);
+        long oldSignCount = data.containsKey("signCount") ? ((Number) data.get("signCount")).longValue() : 0;
+        if (newSignCount > 0 && newSignCount <= oldSignCount && oldSignCount > 0) {
+            log.warn("Possible cloned authenticator detected for credential {}. Old signCount: {}, new signCount: {}",
+                    credential.getId(), oldSignCount, newSignCount);
+        }
+        data.put("signCount", newSignCount);
         credential.setCredentialData(OBJECT_MAPPER.writeValueAsString(data));
         credential.setLastUsedDate(LocalDateTime.now());
         mfaCredentialRepository.save(credential);
