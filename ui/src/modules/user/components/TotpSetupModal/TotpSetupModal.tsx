@@ -32,7 +32,7 @@ const [secret, setSecret] = useState<string>("");
   });
 
   // Verify API call
-  const { loading: verifyLoading, execute: doVerify, error: verifyError } = useApiRequest({
+  const { loading: verifyLoading, execute: doVerify } = useApiRequest({
     action: () => mfaService.verifyTotp(code, name.trim()),
     onReturn: () => {
       setCurrentStep(1); // Move to backup codes step
@@ -52,10 +52,11 @@ const [secret, setSecret] = useState<string>("");
     if (visible) {
       setCurrentStep(0);
       setCode("");
+      setName("");
       setShowSecret(false);
       doSetup();
     }
-  }, [visible]);
+  }, [visible, doSetup]);
 
   const handleVerify = () => {
     if (code.length === 6 && name.trim().length > 0) {
@@ -138,12 +139,13 @@ const [secret, setSecret] = useState<string>("");
 
       <Divider />
 
-      <form className="verification-section" onSubmit={(e) => { e.preventDefault(); handleVerify(); }}>
+      <form className="verification-section" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleVerify(); }}>
         <div className="verification-field" style={{ marginBottom: 16 }}>
           <Text className="verification-label">App Name</Text>
           <Input 
             id="totp-app-name"
             name="totp-app-name"
+            autoComplete="new-password"
 className="verification-input"
 placeholder="e.g. My Phone"
 value={name}
@@ -192,8 +194,8 @@ Connect
       />
 
       <div className="backup-codes-grid">
-        {backupCodes.map((code, index) => (
-          <div key={index} className="backup-code">
+        {backupCodes.map((code) => (
+          <div key={code} className="backup-code">
             {code}
           </div>
         ))}

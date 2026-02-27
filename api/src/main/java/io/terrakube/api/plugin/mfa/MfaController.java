@@ -397,6 +397,16 @@ public class MfaController {
 
         if (verified) {
             mfaSessionService.markMfaVerified(userEmail);
+
+            if (request.getName() != null && !request.getName().trim().isEmpty()) {
+                List<MfaCredential> totpCredentials = mfaCredentialRepository.findByUserEmailAndType(userEmail, TOTP_TYPE);
+                if (!totpCredentials.isEmpty()) {
+                    MfaCredential totpCredential = totpCredentials.get(0);
+                    totpCredential.setName(request.getName().trim());
+                    mfaCredentialRepository.save(totpCredential);
+                }
+            }
+
             // Enable MFA for the user
             UserMfaSettings mfaSettings = userMfaSettingsRepository.findByUserEmail(userEmail)
                     .orElseGet(() -> {
@@ -418,6 +428,35 @@ public class MfaController {
         }
 
         return new ResponseEntity<>(response, verified ? HttpStatus.OK : HttpStatus.UNAUTHORIZED);
+    }
+
+    @PatchMapping("/totp/{id}")
+    public ResponseEntity<Map<String, Object>> renameTotp(
+            @PathVariable UUID id,
+            @RequestBody Map<String, String> body) {
+        String userEmail = getCurrentUserEmail();
+        log.info("Renaming TOTP credential {} for user: {}", id, userEmail);
+
+        String newName = body.get("name");
+        if (newName == null || newName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Name is required"));
+        }
+
+        Optional<MfaCredential> credentialOpt = mfaCredentialRepository.findByIdAndUserEmail(id, userEmail);
+        if (credentialOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("success", false, "message", "Credential not found"));
+        }
+
+        MfaCredential credential = credentialOpt.get();
+        if (!TOTP_TYPE.equals(credential.getType())) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Credential is not TOTP"));
+        }
+
+        credential.setName(newName.trim());
+        mfaCredentialRepository.save(credential);
+
+        return ResponseEntity.ok(Map.of("success", true, "message", "Credential renamed successfully"));
     }
 
     @DeleteMapping("/totp")
@@ -609,6 +648,7 @@ public class MfaController {
     @Setter
     public static class TotpVerifyRequest {
         private String code;
+        private String name;
     }
 
     @Getter

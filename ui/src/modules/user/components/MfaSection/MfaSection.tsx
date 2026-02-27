@@ -1,5 +1,5 @@
-import { Alert, Button, Card, Flex, Spin, Typography, Tag, Space, Popconfirm, message, Divider, Modal, Input, Form } from "antd";
-import { useEffect, useState } from "react";
+import { Alert, Button, Flex, Spin, Typography, Space, Popconfirm, message, Modal, Input, Form } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SafetyCertificateOutlined, MobileOutlined, KeyOutlined, LockOutlined } from "@ant-design/icons";
 import useApiRequest from "@/modules/api/useApiRequest";
 import mfaService, { MfaStatus, MfaMethod } from "@/modules/user/mfaService";
@@ -7,33 +7,38 @@ import TotpSetupModal from "@/modules/user/components/TotpSetupModal/TotpSetupMo
 import WebAuthnSetupModal from "@/modules/user/components/WebAuthnSetupModal/WebAuthnSetupModal";
 import "./MfaSection.css";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Paragraph } = Typography;
 
 export const MfaSection = () => {
   const [messageApi, contextHolder] = message.useMessage();
-const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
+  const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
-const [totpModalOpen, setTotpModalOpen] = useState(false);
+  const [totpModalOpen, setTotpModalOpen] = useState(false);
   const [webauthnModalOpen, setWebauthnModalOpen] = useState(false);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [methodToRename, setMethodToRename] = useState<MfaMethod | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameForm] = Form.useForm();
+  const hasLoadedRef = useRef(false);
+
+  const handleStatusLoaded = useCallback((data: any) => {
+    setMfaStatus(data.data || data);
+  }, []);
+
   const { loading, execute: loadStatus, error } = useApiRequest({
-    action: () => mfaService.getMfaStatus(),
-    onReturn: (data: any) => {
-      // Handle both direct data and ApiResponse wrapper
-      setMfaStatus(data.data || data);
-    },
+    action: mfaService.getMfaStatus,
+    onReturn: handleStatusLoaded,
   });
 
-  const fetchMfaStatus = () => {
+  const fetchMfaStatus = useCallback(() => {
     loadStatus();
-  };
+  }, [loadStatus]);
 
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
     loadStatus();
-  }, []);
+  }, [loadStatus]);
 
   const handleRemoveMethod = async (method: MfaMethod) => {
     setRemovingId(method.id);
@@ -58,14 +63,10 @@ const [totpModalOpen, setTotpModalOpen] = useState(false);
     try {
       if (methodToRename.type === "WEBAUTHN") {
         await mfaService.renameWebAuthnCredential(methodToRename.id, values.name);
-      } else {
+      } else if (methodToRename.type === "TOTP") {
         await mfaService.renameTotp(methodToRename.id, values.name);
       }
-        if (methodToRename.type === "WEBAUTHN") {
-          await mfaService.renameWebAuthnCredential(methodToRename.id, values.name);
-        } else if (methodToRename.type === "TOTP") {
-          await mfaService.renameTotp(methodToRename.id, values.name);
-        }
+      messageApi.success("Method renamed successfully");
       setRenameModalOpen(false);
       setMethodToRename(null);
       renameForm.resetFields();
@@ -145,11 +146,9 @@ const [totpModalOpen, setTotpModalOpen] = useState(false);
                 </div>
                   <div className="mfa-method-actions">
                     <Space size="small">
-                      {item.type !== "TOTP" && (
-                        <Button type="primary" onClick={() => openRenameModal(item)}>
-                          Rename
-                        </Button>
-                      )}
+                      <Button type="primary" onClick={() => openRenameModal(item)}>
+                        Rename
+                      </Button>
                       <Popconfirm
                         title="Remove this method?"
                         description="You won't be able to use it for MFA verification."
