@@ -93,11 +93,6 @@ public class TotpService {
     }
 
     public String setupTotp(String userEmail, String credentialName) {
-        // This is called during initial setup, but since verification happens later, 
-        // we don't save here. Saving is handled in verifyTotp after successful verification.
-        String secret = generateSecret();
-        return secret;
-    }
         String secret = generateSecret();
         String encryptedSecret = encryptionService.encrypt(secret);
 
