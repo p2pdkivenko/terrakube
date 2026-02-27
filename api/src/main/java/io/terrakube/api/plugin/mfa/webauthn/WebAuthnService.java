@@ -49,11 +49,6 @@ public class WebAuthnService {
     @Value("${io.terrakube.hostname:http://localhost:8080}")
     private String hostname;
 
-    @Value("${io.terrakube.mfa.webauthn.origin:}")
-    private String configuredOrigin;
-
-    @Value("${io.terrakube.mfa.webauthn.rp-id:}")
-    private String configuredRpId;
 
     @Value("${io.terrakube.mfa.webauthn.rp-name:Terrakube}")
     private String rpName;
@@ -193,7 +188,6 @@ public class WebAuthnService {
 
         try {
             AuthenticationData authenticationData = WEB_AUTHN_MANAGER.parseAuthenticationResponseJSON(toJson(assertionResponse));
-            AuthenticatorAssertionResponse authenticatorAssertionResponse = authenticationData.getResponse();
             List<MfaCredential> credentials = getRegisteredCredentials(userEmail);
 
             MfaCredential matchingCredential = findMatchingCredential(credentials, authenticationData.getCredentialId());
@@ -220,7 +214,7 @@ public class WebAuthnService {
 
             updateCredentialAfterAuthentication(
                     matchingCredential,
-                    authenticatorAssertionResponse.getAuthenticatorData().getSignCount()
+                    authenticationData.getAuthenticatorData().getSignCount()
             );
 
             return true;
@@ -252,21 +246,22 @@ public class WebAuthnService {
     }
 
     private ServerProperty createServerProperty(Challenge challenge, Origin requestOrigin) {
-        return ServerProperty.builder()
-                .origin(new Origin(resolveOrigin(requestOrigin)))
-                .rpId(resolveRpId(requestOrigin))
-                .challenge(challenge)
-                .build();
+        return new ServerProperty(
+                new Origin(resolveOrigin(requestOrigin)),
+                resolveRpId(requestOrigin),
+                challenge
+        );
     }
 
     private String resolveOrigin(Origin requestOrigin) {
-        if (configuredOrigin != null && !configuredOrigin.isBlank()) {
-            return configuredOrigin;
+        // Use TerrakubeHostname as primary, fallback to request origin
+        if (hostname != null && !hostname.isBlank()) {
+            return hostname;
         }
         if (requestOrigin != null) {
             return requestOrigin.toString();
         }
-        return hostname;
+        return "http://localhost:8080";
     }
 
     private String resolveRpId() {
@@ -274,9 +269,6 @@ public class WebAuthnService {
     }
 
     private String resolveRpId(Origin requestOrigin) {
-        if (configuredRpId != null && !configuredRpId.isBlank()) {
-            return configuredRpId;
-        }
         try {
             URI uri = URI.create(resolveOrigin(requestOrigin));
             if (uri.getHost() != null && !uri.getHost().isBlank()) {

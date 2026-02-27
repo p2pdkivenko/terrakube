@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Flex, Spin, Typography, Tag, Space, List } from "antd";
+import { Alert, Button, Card, Flex, Spin, Typography, Tag, Space, List, Popconfirm, message } from "antd";
 import { useEffect, useState } from "react";
 import { SafetyCertificateOutlined, MobileOutlined, KeyOutlined, LockOutlined } from "@ant-design/icons";
 import useApiRequest from "@/modules/api/useApiRequest";
@@ -15,6 +15,7 @@ export const MfaSection = () => {
   const [totpModalOpen, setTotpModalOpen] = useState(false);
   const [webauthnModalOpen, setWebauthnModalOpen] = useState(false);
   const [backupCodesModalOpen, setBackupCodesModalOpen] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const { loading, execute: loadStatus, error } = useApiRequest({
     action: () => mfaService.getMfaStatus(),
@@ -31,6 +32,23 @@ export const MfaSection = () => {
   useEffect(() => {
     loadStatus();
   }, []);
+
+  const handleRemoveMethod = async (method: MfaMethod) => {
+    setRemovingId(method.id);
+    try {
+      if (method.type === "TOTP") {
+        await mfaService.deleteTotp();
+      } else {
+        await mfaService.deleteWebAuthnCredential(method.id);
+      }
+      message.success(`${getMethodLabel(method.type)} removed successfully`);
+      fetchMfaStatus();
+    } catch (e: any) {
+      message.error(e?.message || "Failed to remove method");
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   const getMethodIcon = (type: "TOTP" | "WEBAUTHN") => {
     return type === "TOTP" ? <MobileOutlined /> : <KeyOutlined />;
@@ -52,7 +70,7 @@ export const MfaSection = () => {
     return (
       <div className="mfa-section">
         <Alert
-          message="Error loading MFA status"
+          title="Error loading MFA status"
           description={error.message || "Please try again later."}
           type="error"
           showIcon
@@ -87,7 +105,25 @@ export const MfaSection = () => {
               dataSource={mfaStatus.methods}
               renderItem={(item: MfaMethod) => (
                 <List.Item
-                  actions={[<Button type="link" danger>Remove</Button>]}
+                  actions={[
+                    <Popconfirm
+                      title="Remove this method?"
+                      description="You won't be able to use it for MFA verification."
+                      onConfirm={() => handleRemoveMethod(item)}
+                      okText="Remove"
+                      okButtonProps={{ danger: true }}
+                    >
+                      <Button
+                        type="primary"
+                        danger
+                        shape="round"
+                        size="small"
+                        loading={removingId === item.id}
+                      >
+                        Remove
+                      </Button>
+                    </Popconfirm>
+                  ]}
                 >
                   <List.Item.Meta
                     avatar={<div className="method-icon">{getMethodIcon(item.type)}</div>}
@@ -128,7 +164,7 @@ export const MfaSection = () => {
 
         {mfaStatus?.mfaEnabled && (
           <Alert
-            message="Backup Codes"
+            title="Backup Codes"
             description={
               <Flex justify="space-between" align="center">
                 <Text>

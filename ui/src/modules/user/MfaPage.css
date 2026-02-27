@@ -1,0 +1,108 @@
+.mfa-page-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.mfa-page-card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+}
+
+.mfa-page-card .ant-card-body {
+  padding: 32px;
+}
+
+.mfa-page-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.mfa-page-logo {
+  height: 48px;
+  margin-bottom: 16px;
+}
+
+.mfa-page-icon {
+  font-size: 48px;
+  color: #1890ff;
+  margin-bottom: 16px;
+}
+
+.mfa-page-header .ant-typography {
+  margin-bottom: 8px;
+}
+
+.mfa-page-header h3.ant-typography {
+  margin-bottom: 4px;
+}
+
+.mfa-tabs .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.mfa-tab-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.mfa-description {
+  text-align: center;
+  display: block;
+}
+
+.mfa-input-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.mfa-input-section .ant-otp {
+  justify-content: center;
+}
+
+.mfa-backup-input {
+  text-align: center;
+  letter-spacing: 2px;
+  font-family: monospace;
+  font-size: 18px;
+  text-transform: uppercase;
+}
+
+.mfa-webauthn-icon {
+  font-size: 64px;
+  color: #1890ff;
+  padding: 24px 0;
+}
+
+.mfa-error {
+  color: #ff4d4f;
+  text-align: center;
+  font-size: 14px;
+}
+
+.mfa-attempts {
+  font-size: 12px;
+}
+
+.mfa-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 0;
+}
+
+/* Button full width */
+.mfa-tab-content .ant-btn {
+  width: 100%;
+  margin-top: 8px;
+}

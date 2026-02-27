@@ -1,39 +1,178 @@
-.totp-setup-modal .ant-modal-body {
-  padding-top: 24px;
+.totp-setup-modal .totp-setup-content {
+  padding: 8px 0;
 }
 
-.totp-setup-modal .qr-container {
+/* Instructions */
+.totp-setup-modal .setup-instructions {
+  margin-bottom: 24px;
+}
+
+.totp-setup-modal .instruction-intro {
+  color: #444;
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.totp-setup-modal .instruction-steps {
+  padding-left: 20px;
+  margin: 0;
+  color: #444;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.totp-setup-modal .instruction-steps li {
+  margin-bottom: 4px;
+}
+
+/* QR Code Section */
+.totp-setup-modal .qr-section {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 24px 0;
-  padding: 24px;
-  background: #f5f5f5;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.totp-setup-modal .qr-code-wrapper {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
   border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.totp-setup-modal .secret-container {
-  margin-top: 16px;
-  text-align: center;
-  width: 100%;
-}
-
-.totp-setup-modal .secret-code {
-  font-family: monospace;
-  font-size: 16px;
-  letter-spacing: 2px;
-  background: #f0f0f0;
-  padding: 8px 16px;
-  border-radius: 4px;
-  margin: 8px 0;
+.totp-setup-modal .qr-image {
+  width: 180px;
+  height: 180px;
   display: block;
 }
 
+.totp-setup-modal .qr-placeholder {
+  width: 180px;
+  height: 180px;
+  background: #f5f5f5;
+}
+
+/* Manual Entry Section */
+.totp-setup-modal .manual-entry-section {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.totp-setup-modal .cant-scan-link {
+  color: #0070d2;
+  font-size: 13px;
+  padding: 0;
+  height: auto;
+}
+
+.totp-setup-modal .cant-scan-link:hover {
+  color: #005fb2;
+}
+
+.totp-setup-modal .manual-key-panel {
+  margin-top: 16px;
+  text-align: left;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.totp-setup-modal .key-label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.totp-setup-modal .key-box {
+  background: #fffbea;
+  border: 1px solid #f0c14b;
+  border-radius: 4px;
+  padding: 12px 16px;
+}
+
+.totp-setup-modal .key-value {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  color: #333;
+  word-break: break-all;
+}
+
+.totp-setup-modal .key-value .ant-typography-copy {
+  margin-left: 8px;
+  color: #666;
+}
+
+/* Verification Section */
+.totp-setup-modal .verification-section {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.totp-setup-modal .verification-label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.totp-setup-modal .verification-input {
+  width: 100%;
+}
+
+/* Action Buttons */
+.totp-setup-modal .action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Dark Mode Support */
+[data-theme="dark"] .totp-setup-modal .instruction-intro,
+[data-theme="dark"] .totp-setup-modal .instruction-steps {
+  color: #b0b0b0;
+}
+
+[data-theme="dark"] .totp-setup-modal .qr-code-wrapper {
+  background: #fff;
+  border-color: #404040;
+}
+
+[data-theme="dark"] .totp-setup-modal .key-box {
+  background: #3d3a2e;
+  border-color: #6b5f3a;
+}
+
+[data-theme="dark"] .totp-setup-modal .key-value {
+  color: #e0d8c0;
+}
+
+[data-theme="dark"] .totp-setup-modal .key-label,
+[data-theme="dark"] .totp-setup-modal .verification-label {
+  color: #999;
+}
+
+[data-theme="dark"] .totp-setup-modal .cant-scan-link {
+  color: #69b1ff;
+}
+
+[data-theme="dark"] .totp-setup-modal .cant-scan-link:hover {
+  color: #91caff;
+}
+
+/* Backup Codes Grid */
 .totp-setup-modal .backup-codes-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin: 24px 0;
+  gap: 8px;
   background: #f9f9f9;
   padding: 16px;
   border-radius: 8px;
@@ -41,18 +180,22 @@
 }
 
 .totp-setup-modal .backup-code {
-  font-family: monospace;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
   font-size: 14px;
   text-align: center;
-  padding: 4px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #e5e5e5;
 }
 
-.totp-setup-modal .step-content {
-  min-height: 300px;
+[data-theme="dark"] .totp-setup-modal .backup-codes-grid {
+  background: #2a2a2a;
+  border-color: #404040;
 }
 
-.totp-setup-modal .verify-input-container {
-  display: flex;
-  justify-content: center;
-  margin: 32px 0;
+[data-theme="dark"] .totp-setup-modal .backup-code {
+  background: #333;
+  border-color: #404040;
+  color: #e0e0e0;
 }

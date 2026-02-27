@@ -29,8 +29,7 @@ public class MfaCredential extends GenericAuditFields {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Lob
-    @Column(name = "credential_data", nullable = false)
+    @Column(name = "credential_data", nullable = false, columnDefinition = "TEXT")
     private String credentialData;
 
     @Column(name = "last_used_date")

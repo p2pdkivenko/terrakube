@@ -41,6 +41,20 @@ function handleResponseSuccess(response: AxiosResponse) {
 
 function handleResponseError(error: AxiosError) {
   if (error.response?.status === 403) {
+    // Check if MFA is required
+    const data = error.response?.data as any;
+    if (data?.mfaRequired === true) {
+      // Redirect to MFA page with returnTo parameter
+      const currentPath = window.location.pathname + window.location.search;
+      // Avoid redirect loop if already on MFA page
+      if (!currentPath.startsWith('/mfa')) {
+        const returnTo = encodeURIComponent(currentPath);
+        window.location.href = `/mfa?returnTo=${returnTo}`;
+        // Return a never-resolving promise since page is redirecting
+        return new Promise(() => {});
+      }
+      return Promise.reject(error);
+    }
     // Enrich the error with a clear permission message so callers can display it
     const enriched = error as AxiosError & { permissionError: true; permissionMessage: string };
     enriched.permissionError = true;

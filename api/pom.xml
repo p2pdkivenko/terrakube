@@ -330,7 +330,7 @@
         <dependency>
             <groupId>com.webauthn4j</groupId>
             <artifactId>webauthn4j-core</artifactId>
-            <version>0.25.1.RELEASE</version>
+            <version>0.28.5.RELEASE</version>
         </dependency>
         <dependency>
             <groupId>dev.samstevens.totp</groupId>

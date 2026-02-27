@@ -8,6 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import jakarta.servlet.http.HttpServletRequest;
+import io.terrakube.api.plugin.security.user.AuthenticatedUser;
+import com.yahoo.elide.core.security.User;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.terrakube.api.plugin.mfa.backup.BackupCodeService;
 import io.terrakube.api.plugin.mfa.session.MfaSessionService;
 import io.terrakube.api.plugin.mfa.totp.TotpService;
+import io.terrakube.api.plugin.mfa.ratelimit.MfaRateLimitService;
 import io.terrakube.api.plugin.mfa.webauthn.WebAuthnService;
 import io.terrakube.api.repository.MfaCredentialRepository;
 import io.terrakube.api.repository.UserMfaSettingsRepository;
@@ -46,28 +52,52 @@ public class MfaController {
     private final WebAuthnService webAuthnService;
     private final TotpService totpService;
     private final MfaSessionService mfaSessionService;
+    private final MfaRateLimitService mfaRateLimitService;
+    private final AuthenticatedUser authenticatedUser;
 
     public MfaController(UserMfaSettingsRepository userMfaSettingsRepository,
                          MfaCredentialRepository mfaCredentialRepository,
                          BackupCodeService backupCodeService,
                          WebAuthnService webAuthnService,
                          TotpService totpService,
-                         MfaSessionService mfaSessionService) {
+                         MfaSessionService mfaSessionService,
+                         MfaRateLimitService mfaRateLimitService,
+                         AuthenticatedUser authenticatedUser) {
         this.userMfaSettingsRepository = userMfaSettingsRepository;
         this.mfaCredentialRepository = mfaCredentialRepository;
         this.backupCodeService = backupCodeService;
         this.webAuthnService = webAuthnService;
         this.totpService = totpService;
         this.mfaSessionService = mfaSessionService;
+        this.mfaRateLimitService = mfaRateLimitService;
+        this.authenticatedUser = authenticatedUser;
     }
 
     private String getCurrentUserEmail() {
-        return SecurityContextHolder.getContext().getAuthentication().getName();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
+            Object email = jwtAuth.getTokenAttributes().get("email");
+            if (email != null) {
+                return email.toString();
+            }
+        }
+        return authentication.getName();
+    }
+
+    @GetMapping("/methods")
+    public ResponseEntity<Map<String, Object>> getMethods() {
+        String userEmail = getCurrentUserEmail();
+        List<MfaCredential> credentials = mfaCredentialRepository.findByUserEmail(userEmail);
+        List<String> methods = credentials.stream()
+                .map(MfaCredential::getType)
+                .distinct()
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(Map.of("methods", methods));
     }
 
     @GetMapping("/status")
     public ResponseEntity<MfaStatusResponse> getStatus() {
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        String userEmail = getCurrentUserEmail();
         log.info("Fetching MFA status for user: {}", userEmail);
 
         // Get MFA settings
@@ -76,10 +106,16 @@ public class MfaController {
 
         // Get enabled MFA methods
         List<MfaCredential> credentials = mfaCredentialRepository.findByUserEmail(userEmail);
-        List<String> methods = credentials.stream()
-                .map(MfaCredential::getType)
-                .filter(type -> !type.equals("BACKUP_CODE"))
-                .distinct()
+        List<MfaMethodInfo> methods = credentials.stream()
+                .filter(c -> !c.getType().equals("BACKUP_CODE"))
+                .map(c -> {
+                    MfaMethodInfo info = new MfaMethodInfo();
+                    info.setId(c.getId().toString());
+                    info.setType(c.getType());
+                    info.setName(c.getName());
+                    info.setCreatedAt(c.getCreatedDate() != null ? c.getCreatedDate().toString() : null);
+                    return info;
+                })
                 .collect(Collectors.toList());
 
         // Get remaining backup codes
@@ -98,7 +134,7 @@ public class MfaController {
 
     @PostMapping("/webauthn/authenticate/options")
     public ResponseEntity<String> getWebAuthnAuthOptions() {
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        String userEmail = getCurrentUserEmail();
         log.info("Generating WebAuthn authentication options for user: {}", userEmail);
 
         PublicKeyCredentialRequestOptions options = webAuthnService.generateAuthenticationOptions(userEmail);
@@ -110,11 +146,17 @@ public class MfaController {
 
     @PostMapping("/webauthn/authenticate/verify")
     public ResponseEntity<WebAuthnAuthVerifyResponse> verifyWebAuthnAuth(
-            @RequestBody WebAuthnAuthVerifyRequest request) {
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+            @RequestBody WebAuthnAuthVerifyRequest request, HttpServletRequest httpRequest) {
+        String userEmail = getCurrentUserEmail();
         log.info("Verifying WebAuthn authentication for user: {}", userEmail);
 
+        if (!mfaRateLimitService.checkRateLimit(userEmail)) {
+            log.warn("Rate limit exceeded for MFA verification for user: {}", userEmail);
+            return new ResponseEntity<>(HttpStatus.TOO_MANY_REQUESTS);
+        }
+
         boolean verified = webAuthnService.verifyAuthentication(userEmail, request.getAssertion());
+        mfaRateLimitService.recordAttempt(userEmail, "WEBAUTHN", verified, httpRequest.getRemoteAddr());
 
         WebAuthnAuthVerifyResponse response = new WebAuthnAuthVerifyResponse();
         response.setVerified(verified);
@@ -228,7 +270,7 @@ public class MfaController {
 
     @PostMapping("/backup-codes/generate")
     public ResponseEntity<BackupCodesGenerateResponse> generateBackupCodes() {
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        String userEmail = getCurrentUserEmail();
         log.info("Generating backup codes for user: {}", userEmail);
 
         List<String> codes = backupCodeService.generateBackupCodes(userEmail);
@@ -240,11 +282,19 @@ public class MfaController {
     }
 
     @PostMapping("/backup-codes/verify")
-    public ResponseEntity<BackupCodeVerifyResponse> verifyBackupCode(@RequestBody BackupCodeVerifyRequest request) {
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+    public ResponseEntity<BackupCodeVerifyResponse> verifyBackupCode(
+            @RequestBody BackupCodeVerifyRequest request, HttpServletRequest httpRequest) {
+        String userEmail = getCurrentUserEmail();
         log.info("Verifying backup code for user: {}", userEmail);
 
+        if (!mfaRateLimitService.checkRateLimit(userEmail)) {
+            log.warn("Rate limit exceeded for MFA verification for user: {}", userEmail);
+            return new ResponseEntity<>(HttpStatus.TOO_MANY_REQUESTS);
+        }
+
         boolean verified = backupCodeService.verifyBackupCode(userEmail, request.getCode());
+        mfaRateLimitService.recordAttempt(userEmail, "BACKUP_CODE", verified, httpRequest.getRemoteAddr());
+
         BackupCodeVerifyResponse response = new BackupCodeVerifyResponse();
         response.setVerified(verified);
 
@@ -258,7 +308,7 @@ public class MfaController {
 
     @GetMapping("/backup-codes/count")
     public ResponseEntity<BackupCodesCountResponse> getBackupCodesCount() {
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        String userEmail = getCurrentUserEmail();
         log.info("Fetching backup codes count for user: {}", userEmail);
 
         int count = backupCodeService.getBackupCodesCount(userEmail);
@@ -293,11 +343,18 @@ public class MfaController {
     }
 
     @PostMapping("/totp/verify")
-    public ResponseEntity<TotpVerifyResponse> verifyTotp(@RequestBody TotpVerifyRequest request) {
+    public ResponseEntity<TotpVerifyResponse> verifyTotp(
+            @RequestBody TotpVerifyRequest request, HttpServletRequest httpRequest) {
         String userEmail = getCurrentUserEmail();
         log.info("Verifying TOTP code for user: {}", userEmail);
 
+        if (!mfaRateLimitService.checkRateLimit(userEmail)) {
+            log.warn("Rate limit exceeded for MFA verification for user: {}", userEmail);
+            return new ResponseEntity<>(HttpStatus.TOO_MANY_REQUESTS);
+        }
+
         boolean verified = totpService.verifyCodeForUser(userEmail, request.getCode());
+        mfaRateLimitService.recordAttempt(userEmail, "TOTP", verified, httpRequest.getRemoteAddr());
 
         TotpVerifyResponse response = new TotpVerifyResponse();
         response.setVerified(verified);
@@ -384,7 +441,7 @@ public class MfaController {
 
     @DeleteMapping("/admin/reset/{email}")
     public ResponseEntity<AdminResetResponse> adminResetMfa(@PathVariable("email") String targetEmail) {
-        String currentUserEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        String currentUserEmail = getCurrentUserEmail();
         log.info("Admin MFA reset requested by {} for user {}", currentUserEmail, targetEmail);
 
         // Check if current user is super user
@@ -428,18 +485,31 @@ public class MfaController {
     }
 
     private boolean checkSuperUserPermission(String userEmail) {
-        // TODO: Integrate with IsSuperUser check or GroupService
-        // For now, this is a placeholder that always returns false
-        // This should be implemented with proper permission checking
-        return false;
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            User elideUser = new User(authentication);
+            return authenticatedUser.isSuperUser(elideUser);
+        } catch (Exception e) {
+            log.warn("Failed to check super user permission for {}: {}", userEmail, e.getMessage());
+            return false;
+        }
     }
 
     @Getter
     @Setter
     public static class MfaStatusResponse {
         private boolean mfaEnabled;
-        private List<String> methods;
+        private List<MfaMethodInfo> methods;
         private int backupCodesRemaining;
+    }
+
+    @Getter
+    @Setter
+    public static class MfaMethodInfo {
+        private String id;
+        private String type;
+        private String name;
+        private String createdAt;
     }
 
     @Getter

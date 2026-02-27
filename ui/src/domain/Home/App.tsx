@@ -19,6 +19,7 @@ import { HelpMenu } from "@/components/HelpMenu";
 import LoadingFallback from "@/components/LoadingFallback";
 import { UserMenu } from "@/components/UserMenu";
 import { OrganizationSelector } from "@/components/OrganizationSelector";
+// MfaPage - standalone page outside AppLayout
 import logo from "./white_logo.png";
 import { ORGANIZATION_ARCHIVE, ORGANIZATION_NAME } from "../../config/actionTypes";
 import axiosInstance from "../../config/axiosConfig";
@@ -66,6 +67,8 @@ const OrganizationSettings = lazy(() =>
 const UserSettingsPage = lazy(() =>
   import("@/modules/user/UserSettingsPage").then((module) => ({ default: module.UserSettingsPage }))
 );
+const MfaPage = lazy(() => import("@/modules/user/MfaPage"));
+
 
 // Helper component to extract URL parameters for collection routes
 const CollectionSettingsWrapper = ({ mode }: { mode: "edit" | "detail" }) => {
@@ -227,8 +230,12 @@ const App = () => {
   }
 
   const router = createBrowserRouter([
+    // MFA page - standalone, outside AppLayout
     {
-      path: "/",
+      path: "/mfa",
+      element: <MfaPage />,
+    },
+    {
       element: <AppLayout />,
       children: [
         {
@@ -357,6 +364,10 @@ const App = () => {
         },
         {
           path: "/settings/theme",
+          element: <UserSettingsPage />,
+        },
+        {
+          path: "/settings/security",
           element: <UserSettingsPage />,
         },
         {

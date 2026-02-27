@@ -48,7 +48,9 @@ export default function WebAuthnSetupModal({ visible, onCancel, onSuccess }: Pro
       
       // 1. Get options from server
       const optionsResponse = await mfaService.getWebAuthnRegisterOptions();
-      const options = optionsResponse.data as unknown as PublicKeyCredentialCreationOptionsJSON;
+      const options = typeof optionsResponse.data === 'string' 
+        ? JSON.parse(optionsResponse.data) as PublicKeyCredentialCreationOptionsJSON
+        : optionsResponse.data as unknown as PublicKeyCredentialCreationOptionsJSON;
 
       // 2. Add authenticator selection based on user choice
       if (!options.authenticatorSelection) {

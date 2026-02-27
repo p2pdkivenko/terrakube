@@ -17,7 +17,9 @@ export interface MfaStatus {
 
 // TOTP Interfaces
 export interface TotpSetupResponse {
-  secretUri: string;
+  secret: string;
+  qrCodeUri: string;
+  qrCodeBase64: string;
 }
 
 export interface TotpVerifyRequest {
@@ -96,8 +98,8 @@ async function getWebAuthnRegisterOptions(): Promise<ApiResponse<WebAuthnRegiste
   return await apiPost("/mfa/v1/webauthn/register/options", {});
 }
 
-async function verifyWebAuthnRegistration(credential: object): Promise<ApiResponse<void>> {
-  return await apiPost("/mfa/v1/webauthn/register/verify", credential);
+async function verifyWebAuthnRegistration(credential: object, name?: string): Promise<ApiResponse<void>> {
+  return await apiPost("/mfa/v1/webauthn/register/verify", { credential: JSON.stringify(credential), name: name || "Security Key" });
 }
 
 async function listWebAuthnCredentials(): Promise<ApiResponse<WebAuthnCredential[]>> {
@@ -113,7 +115,7 @@ async function getWebAuthnAuthOptions(): Promise<ApiResponse<WebAuthnAuthOptions
 }
 
 async function verifyWebAuthnAuth(assertion: object): Promise<ApiResponse<void>> {
-  return await apiPost("/mfa/v1/webauthn/authenticate/verify", assertion);
+  return await apiPost("/mfa/v1/webauthn/authenticate/verify", { assertion });
 }
 
 async function generateBackupCodes(): Promise<ApiResponse<BackupCodesResponse>> {
@@ -131,11 +133,17 @@ async function getBackupCodes(): Promise<ApiResponse<BackupCode[]>> {
   return await apiGet("/mfa/v1/backup-codes");
 }
 
+async function getMfaMethods(): Promise<ApiResponse<{ methods: string[] }>> {
+  return await apiGet("/mfa/v1/methods");
+}
+
 const methods = {
   getMfaStatus,
   setupTotp,
   verifyTotp,
-  deleteTotp,
+  getMfaStatus,
+  getMfaMethods,
+  setupTotp,
   getWebAuthnRegisterOptions,
   verifyWebAuthnRegistration,
   listWebAuthnCredentials,

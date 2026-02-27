@@ -11,12 +11,14 @@ interface MfaChallengeModalProps {
   open: boolean;
   availableMethods: string[];
   onSuccess: () => void;
+  onCancel?: () => void;
 }
 
 const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
   open,
   availableMethods,
   onSuccess,
+  onCancel,
 }) => {
   const [activeTab, setActiveTab] = useState<string>("TOTP");
   const [loading, setLoading] = useState(false);
@@ -136,21 +138,30 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
   };
 
   const renderTotpTab = () => (
-    <div className="mfa-challenge-content">
+    <form className="mfa-challenge-content" onSubmit={(e) => { e.preventDefault(); handleTotpVerify(); }}>
       <div className="mfa-challenge-description">
         <Text>Open your authenticator app and enter the 6-digit code.</Text>
       </div>
       
       <div className="mfa-input-container">
-        <Input.OTP 
-          length={6} 
-          value={totpCode} 
-          onChange={(val) => {
+        <Input
+          id="totp-code"
+          name="totp-code"
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={totpCode}
+          onChange={(e) => {
+            const val = e.target.value.replace(/\D/g, "").slice(0, 6);
             setTotpCode(val);
             setError(null);
           }}
+          placeholder="000000"
+          maxLength={6}
           disabled={loading}
           size="large"
+          autoFocus
+          className="totp-code-input"
         />
         
         {error && <div className="mfa-error-message">{error}</div>}
@@ -163,7 +174,7 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       
       <Button 
         type="primary" 
-        onClick={handleTotpVerify} 
+        htmlType="submit"
         loading={loading} 
         disabled={totpCode.length !== 6}
         block
@@ -172,8 +183,7 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       >
         Verify
       </Button>
-    </div>
-  );
+    </form>
 
   const renderWebAuthnTab = () => (
     <div className="webauthn-container">
@@ -198,13 +208,16 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
   );
 
   const renderBackupCodeTab = () => (
-    <div className="mfa-challenge-content">
+    <form className="mfa-challenge-content" onSubmit={(e) => { e.preventDefault(); handleBackupCodeVerify(); }}>
       <div className="mfa-challenge-description">
         <Text>Enter one of your 8-character backup codes.</Text>
       </div>
       
       <div className="mfa-input-container">
         <Input
+          id="backup-code"
+          name="backup-code"
+          autoComplete="off"
           value={backupCode}
           onChange={(e) => {
             setBackupCode(e.target.value.trim().toUpperCase());
@@ -215,7 +228,7 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
           disabled={loading}
           className="backup-code-input"
           size="large"
-          onPressEnter={handleBackupCodeVerify}
+          autoFocus
         />
         
         {error && <div className="mfa-error-message">{error}</div>}
@@ -228,7 +241,7 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       
       <Button 
         type="primary" 
-        onClick={handleBackupCodeVerify} 
+        htmlType="submit"
         loading={loading} 
         disabled={backupCode.length < 8}
         block
@@ -237,8 +250,7 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       >
         Verify
       </Button>
-    </div>
-  );
+    </form>
 
   const items = [];
   
@@ -285,12 +297,12 @@ const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       open={open}
       title={<Title level={4} style={{ textAlign: "center", margin: 0 }}>Two-Factor Authentication</Title>}
       footer={null}
-      closable={false}
-      maskClosable={false}
+      closable={!!onCancel}
+      onCancel={onCancel}
+      mask={{ closable: false }}
       keyboard={false}
       centered
       width={400}
-      className="mfa-challenge-modal"
     >
       {items.length > 1 ? (
         <Tabs 

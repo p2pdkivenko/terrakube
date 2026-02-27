@@ -2,17 +2,18 @@ package io.terrakube.api.rs.mfa;
 
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import io.terrakube.api.plugin.security.audit.GenericAuditFields;
+import org.hibernate.annotations.CreationTimestamp;
 import jakarta.persistence.*;
 import io.terrakube.api.rs.IdConverter;
 import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @NoArgsConstructor
 @Getter
 @Setter
 @Entity(name = "mfa_attempt")
-public class MfaAttempt extends GenericAuditFields {
+public class MfaAttempt {
     @Id
     @JdbcTypeCode(Types.VARCHAR)
     @Convert(converter = IdConverter.class)
@@ -30,4 +31,8 @@ public class MfaAttempt extends GenericAuditFields {
 
     @Column(name = "ip_address")
     private String ipAddress;
+
+    @CreationTimestamp
+    @Column(name = "created_date", nullable = false, updatable = false)
+    private LocalDateTime createdDate;
 }

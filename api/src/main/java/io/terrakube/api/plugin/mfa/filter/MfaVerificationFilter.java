@@ -81,8 +81,9 @@ public class MfaVerificationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String userEmail = authentication.getName();
-        if (userEmail == null || userEmail.isBlank()) {
+        String emailClaim = getJwtClaim(request, "email");
+        String userEmail = emailClaim.isBlank() ? authentication.getName() : emailClaim;
+        if (userEmail.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -90,7 +91,8 @@ public class MfaVerificationFilter extends OncePerRequestFilter {
         Optional<UserMfaSettings> mfaSettings = userMfaSettingsRepository.findByUserEmail(userEmail);
         boolean mfaEnabled = mfaSettings.map(UserMfaSettings::isMfaEnabled).orElse(false);
 
-        if (!mfaEnabled || isMfaVerified(userEmail)) {
+        long tokenIssuedAt = getTokenIssuedAtSeconds(request);
+        if (!mfaEnabled || mfaSessionService.isMfaVerifiedAfter(userEmail, tokenIssuedAt)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -108,6 +110,19 @@ public class MfaVerificationFilter extends OncePerRequestFilter {
 
     public boolean isMfaVerified(String userEmail) {
         return mfaSessionService.isMfaVerified(userEmail);
+    }
+
+    private long getTokenIssuedAtSeconds(HttpServletRequest request) {
+        String iatStr = getJwtClaim(request, "iat");
+        if (iatStr.isBlank()) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(iatStr);
+        } catch (NumberFormatException e) {
+            // iat might be a decimal like "1740000000.0"
+            return (long) Double.parseDouble(iatStr);
+        }
     }
 
     private String getJwtClaim(HttpServletRequest request, String claim) {

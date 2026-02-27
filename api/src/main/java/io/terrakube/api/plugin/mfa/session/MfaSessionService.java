@@ -48,11 +48,33 @@ public class MfaSessionService {
      * @return true if the user has a valid MFA verification session, false otherwise
      */
     public boolean isMfaVerified(String userEmail) {
+        return isMfaVerifiedAfter(userEmail, 0);
+    }
+
+    /**
+     * Check if a user has a valid MFA verification session that was created
+     * after the given token issued-at time. This ensures a new login (new token)
+     * requires fresh MFA verification even if an old session exists.
+     *
+     * @param userEmail the email of the user to check
+     * @param tokenIssuedAtSeconds the JWT 'iat' claim in epoch seconds (0 to skip check)
+     * @return true if the user has a valid MFA session verified after the token was issued
+     */
+    public boolean isMfaVerifiedAfter(String userEmail, long tokenIssuedAtSeconds) {
         if (userEmail == null || userEmail.isBlank()) {
             return false;
         }
         String key = KEY_PREFIX + userEmail;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        Object value = redisTemplate.opsForValue().get(key);
+        if (value == null) {
+            return false;
+        }
+        if (tokenIssuedAtSeconds <= 0) {
+            return true;
+        }
+        long verifiedAtMillis = ((Number) value).longValue();
+        long tokenIssuedAtMillis = tokenIssuedAtSeconds * 1000;
+        return verifiedAtMillis >= tokenIssuedAtMillis;
     }
 
     /**

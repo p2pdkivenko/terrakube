@@ -74,7 +74,7 @@ export const Tokens = () => {
 
       {loading && (
         <Flex align="center" className="loader" vertical gap="middle">
-          <Spin tip="Loading" size="large" />
+          <Spin description="Loading" size="large" />
           <Typography.Text>Loading tokens...</Typography.Text>
         </Flex>
       )}
