@@ -10,8 +10,7 @@
 }
 
 .webauthn-method-card {
-  border: 1px solid #d9d9d9;
-  border-radius: 8px;
+  border: 1px solid #bfbfbf;
   padding: 24px;
   text-align: center;
   cursor: pointer;
@@ -39,12 +38,13 @@
 .webauthn-method-title {
   font-weight: 600;
   font-size: 16px;
+  color: #262626;
   margin-bottom: 8px;
 }
 
 .webauthn-method-desc {
   font-size: 12px;
-  color: #8c8c8c;
+  color: #595959;
 }
 
 .webauthn-credentials-list {

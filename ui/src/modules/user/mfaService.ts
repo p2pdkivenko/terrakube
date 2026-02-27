@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "@/modules/api/apiWrapper";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/modules/api/apiWrapper";
 import { ApiResponse } from "@/modules/api/types";
 
 // MFA Status and Methods
@@ -86,12 +86,16 @@ async function setupTotp(): Promise<ApiResponse<TotpSetupResponse>> {
   return await apiPost("/mfa/v1/totp/setup", {});
 }
 
-async function verifyTotp(code: string): Promise<ApiResponse<void>> {
-  return await apiPost("/mfa/v1/totp/verify", { code });
+async function verifyTotp(code: string, name: string): Promise<ApiResponse<void>> {
+  return await apiPost("/mfa/v1/totp/verify", { code, name });
 }
 
 async function deleteTotp(): Promise<ApiResponse<void>> {
   return await apiDelete("/mfa/v1/totp");
+}
+
+async function renameTotp(id: string, name: string): Promise<ApiResponse<void>> {
+  return await apiPatch(`/mfa/v1/totp/${id}`, { name });
 }
 
 async function getWebAuthnRegisterOptions(): Promise<ApiResponse<WebAuthnRegisterOptions>> {
@@ -108,6 +112,10 @@ async function listWebAuthnCredentials(): Promise<ApiResponse<WebAuthnCredential
 
 async function deleteWebAuthnCredential(id: string): Promise<ApiResponse<void>> {
   return await apiDelete(`/mfa/v1/webauthn/credentials/${id}`);
+}
+
+async function renameWebAuthnCredential(id: string, name: string): Promise<ApiResponse<void>> {
+  return await apiPatch(`/mfa/v1/webauthn/credentials/${id}`, { name });
 }
 
 async function getWebAuthnAuthOptions(): Promise<ApiResponse<WebAuthnAuthOptions>> {
@@ -139,15 +147,16 @@ async function getMfaMethods(): Promise<ApiResponse<{ methods: string[] }>> {
 
 const methods = {
   getMfaStatus,
-  setupTotp,
-  verifyTotp,
-  getMfaStatus,
   getMfaMethods,
-  setupTotp,
+setupTotp,
+  verifyTotp,
+  deleteTotp,
+renameTotp,
   getWebAuthnRegisterOptions,
   verifyWebAuthnRegistration,
   listWebAuthnCredentials,
   deleteWebAuthnCredential,
+  renameWebAuthnCredential,
   getWebAuthnAuthOptions,
   verifyWebAuthnAuth,
   generateBackupCodes,

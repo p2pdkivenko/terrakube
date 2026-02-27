@@ -1,21 +1,108 @@
-.mfa-section {
-  padding: 24px;
+.mfa-container {
   max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 0;
 }
 
-.mfa-section .ant-card {
-  margin-bottom: 16px;
+.mfa-header {
+  margin-bottom: 32px;
 }
 
-.mfa-section .mfa-status-badge {
+.mfa-status-banner {
+  padding: 16px 24px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.mfa-status-banner.enabled {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.mfa-status-banner.disabled {
+  background-color: #f5f5f5;
+  border: 1px solid #d9d9d9;
+  color: #000000;
+}
+
+.mfa-card {
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
   margin-bottom: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.mfa-section .method-icon {
+.mfa-card-header {
+  padding: 20px 28px;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fafafa;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.mfa-card-body {
+  padding: 0;
+}
+
+.mfa-method-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 28px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.2s;
+}
+
+.mfa-method-item:last-child {
+  border-bottom: none;
+}
+
+.mfa-method-item:hover {
+  background-color: #f8f9fa;
+  transform: translateY(-1px);
+}
+
+.mfa-method-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.mfa-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #f0f2f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
-  margin-right: 12px;
+  color: #595959;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
 }
 
-.mfa-section .backup-codes-alert {
-  margin-top: 24px;
+.mfa-method-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mfa-method-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #262626;
+  margin-bottom: 4px;
+}
+
+.mfa-method-description {
+  font-size: 14px;
+  color: #8c8c8c;
 }

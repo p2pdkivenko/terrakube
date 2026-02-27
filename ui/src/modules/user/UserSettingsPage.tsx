@@ -45,13 +45,13 @@ navigate("/settings/tokens");
             title: "Settings",
           },
           {
-            title: currentTab === "2" ? "Theme" : currentTab === "3" ? "Security" : "Tokens",
+            title: currentTab === "2" ? "Theme" : currentTab === "3" ? "MFA" : "Tokens",
           },
         ]}
       />
       <div className="tabs" style={{ background: colorBgContainer }}>
         <Tabs
-          tabPosition="left"
+          tabPlacement="left"
           activeKey={currentTab}
           onChange={handleTabChange}
           items={[
@@ -66,7 +66,7 @@ navigate("/settings/tokens");
 children: <ThemeSection />,
             },
             {
-              label: "Security",
+              label: "MFA",
               key: "3",
               children: <MfaSection />,
             },
