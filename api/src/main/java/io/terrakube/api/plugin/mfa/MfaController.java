@@ -249,7 +249,7 @@ public class MfaController {
         return ResponseEntity.ok(response);
     }
 
-    @PatchMapping("/webauthn/credentials/{id}")
+    @PatchMapping("/totp/{id}")
     public ResponseEntity<Map<String, Object>> renameWebAuthnCredential(@PathVariable UUID id, @RequestBody Map<String, String> body) {
         String userEmail = getCurrentUserEmail();
         String newName = body.get("name");
@@ -376,10 +376,17 @@ public class MfaController {
 
         log.info("TOTP setup completed for user: {}", userEmail);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    public static class TotpVerifyRequest {
+        private String code;
+        private String name;
     }
 
     @PostMapping("/totp/verify")
-    public ResponseEntity<TotpVerifyResponse> verifyTotp(
+    public static class TotpVerifyRequest {
+        private String code;
+        private String name;
+        // getters and setters
+    }
             @RequestBody TotpVerifyRequest request, HttpServletRequest httpRequest) {
         String userEmail = getCurrentUserEmail();
         log.info("Verifying TOTP code for user: {}", userEmail);
@@ -418,7 +425,57 @@ public class MfaController {
         }
 
         return new ResponseEntity<>(response, verified ? HttpStatus.OK : HttpStatus.UNAUTHORIZED);
-    }
+        boolean verified = totpService.verifyCodeForUser(userEmail, request.getCode());
+        mfaRateLimitService.recordAttempt(userEmail, "TOTP", verified, httpRequest.getRemoteAddr());
+
+        TotpVerifyResponse response = new TotpVerifyResponse();
+        response.setVerified(verified);
+
+        if (verified) {
+            mfaSessionService.markMfaVerified(userEmail);
+            // Enable MFA for the user
+            UserMfaSettings mfaSettings = userMfaSettingsRepository.findByUserEmail(userEmail)
+                    .orElseGet(() -> {
+                        UserMfaSettings newSettings = new UserMfaSettings();
+                        newSettings.setUserEmail(userEmail);
+                        return newSettings;
+                    });
+            mfaSettings.setMfaEnabled(true);
+            if (mfaSettings.getPreferredMethod() == null) {
+                mfaSettings.setPreferredMethod(TOTP_TYPE);
+            }
+            userMfaSettingsRepository.save(mfaSettings);
+
+            // Update or create TOTP credential with the provided name
+            List<MfaCredential> totpCredentials = mfaCredentialRepository.findByUserEmailAndType(userEmail, TOTP_TYPE);
+            MfaCredential totpCredential;
+            if (totpCredentials.isEmpty()) {
+                totpCredential = new MfaCredential();
+                totpCredential.setUserEmail(userEmail);
+                totpCredential.setType(TOTP_TYPE);
+                // Generate new secret for credential
+                String secret = totpService.generateSecret();
+                String encryptedSecret = encryptionService.encrypt(secret);
+                Map<String, Object> credentialData = new HashMap<>();
+                credentialData.put("encryptedSecret", encryptedSecret);
+                credentialData.put("algorithm", "SHA1");
+                credentialData.put("digits", 6);
+                credentialData.put("period", 30);
+                totpCredential.setCredentialData(OBJECT_MAPPER.writeValueAsString(credentialData));
+            } else {
+                totpCredential = totpCredentials.get(0);
+            }
+            totpCredential.setName(request.getName() != null && !request.getName().trim().isEmpty() ? request.getName().trim() : "TOTP Authenticator");
+            mfaCredentialRepository.save(totpCredential);
+
+            response.setMfaEnabled(true);
+            log.info("TOTP verification successful, MFA enabled for user: {}", userEmail);
+        } else {
+            response.setMfaEnabled(false);
+            log.warn("TOTP verification failed for user: {}", userEmail);
+        }
+
+        return new ResponseEntity<>(response, verified ? HttpStatus.OK : HttpStatus.UNAUTHORIZED);
 
     @DeleteMapping("/totp")
     public ResponseEntity<TotpDeleteResponse> deleteTotp() {
@@ -612,7 +669,11 @@ public class MfaController {
     }
 
     @Getter
-    @Setter
+    public static class TotpDeleteResponse {
+        private boolean deleted;
+        private boolean mfaEnabled;
+        private String message;
+    }
     public static class TotpVerifyResponse {
         private boolean verified;
         private boolean mfaEnabled;
@@ -644,3 +705,68 @@ public class MfaController {
         }
     }
 }
+
+
+    @PatchMapping("/totp/{id}")
+    public ResponseEntity<Map<String, Object>> renameTotp(@PathVariable UUID id, @RequestBody Map<String, String> body) {
+        String userEmail = getCurrentUserEmail();
+        String newName = body.get("name");
+        if (newName == null || newName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Name is required"));
+        }
+
+        Optional<MfaCredential> credentialOpt = mfaCredentialRepository.findByIdAndUserEmail(id, userEmail);
+        if (credentialOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("success", false, "message", "Credential not found"));
+        }
+
+        MfaCredential credential = credentialOpt.get();
+        credential.setName(newName.trim());
+        mfaCredentialRepository.save(credential);
+
+        log.info("TOTP credential {} renamed to '{}' for user: {}", id, newName.trim(), userEmail);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Credential renamed successfully"));
+    }
+
+    @DeleteMapping("/totp/{id}")
+    public ResponseEntity<Map<String, Object>> deleteTotp(@PathVariable UUID id) {
+        String userEmail = getCurrentUserEmail();
+        log.info("Deleting TOTP credential {} for user: {}", id, userEmail);
+
+        Optional<MfaCredential> credentialOpt = mfaCredentialRepository.findByIdAndUserEmail(id, userEmail);
+        if (credentialOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("success", false, "message", "Credential not found"));
+        }
+
+        mfaCredentialRepository.delete(credentialOpt.get());
+        log.info("TOTP credential {} deleted for user: {}", id, userEmail);
+
+        // Similar logic as before for checking remaining methods and updating settings
+        List<MfaCredential> remainingCredentials = mfaCredentialRepository.findByUserEmail(userEmail);
+        boolean hasOtherMfaMethods = remainingCredentials.stream()
+                .anyMatch(cred -> !cred.getType().equals("BACKUP_CODE"));
+
+        if (!hasOtherMfaMethods) {
+            userMfaSettingsRepository.findByUserEmail(userEmail).ifPresent(settings -> {
+                settings.setMfaEnabled(false);
+                settings.setPreferredMethod(null);
+                userMfaSettingsRepository.save(settings);
+            });
+        } else {
+            userMfaSettingsRepository.findByUserEmail(userEmail).ifPresent(settings -> {
+                if (TOTP_TYPE.equals(settings.getPreferredMethod())) {
+                    String newPreferred = remainingCredentials.stream()
+                            .filter(cred -> !cred.getType().equals("BACKUP_CODE"))
+                            .findFirst()
+                            .map(MfaCredential::getType)
+                            .orElse(null);
+                    settings.setPreferredMethod(newPreferred);
+                    userMfaSettingsRepository.save(settings);
+                }
+            });
+        }
+
+        return ResponseEntity.ok(Map.of("success", true, "message", "Credential deleted successfully"));
+    }

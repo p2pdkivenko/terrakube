@@ -61,7 +61,11 @@ const [totpModalOpen, setTotpModalOpen] = useState(false);
       } else {
         await mfaService.renameTotp(methodToRename.id, values.name);
       }
-      messageApi.success("Method renamed successfully");
+        if (methodToRename.type === "WEBAUTHN") {
+          await mfaService.renameWebAuthnCredential(methodToRename.id, values.name);
+        } else if (methodToRename.type === "TOTP") {
+          await mfaService.renameTotp(methodToRename.id, values.name);
+        }
       setRenameModalOpen(false);
       setMethodToRename(null);
       renameForm.resetFields();
@@ -141,7 +145,11 @@ const [totpModalOpen, setTotpModalOpen] = useState(false);
                 </div>
                   <div className="mfa-method-actions">
                     <Space size="small">
-                      <Button type="primary" onClick={() => openRenameModal(item)}>Rename</Button>
+                      {item.type !== "TOTP" && (
+                        <Button type="primary" onClick={() => openRenameModal(item)}>
+                          Rename
+                        </Button>
+                      )}
                       <Popconfirm
                         title="Remove this method?"
                         description="You won't be able to use it for MFA verification."
